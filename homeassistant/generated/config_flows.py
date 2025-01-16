@@ -594,6 +594,7 @@ FLOWS = {
         "sun",
         "sunweg",
         "surepetcare",
+        "swiss_hydrological_data",
         "swiss_public_transport",
         "switchbee",
         "switchbot",
