@@ -80,7 +80,7 @@ class SwissHydroDataConfigFlow(ConfigFlow, domain=DOMAIN):
         session = async_get_clientsession(self.hass)
         shd = SwissHydroData(session)
         station_data = await shd.async_get_station(station_id)
-        return station_data["parameters"].keys()
+        return list(station_data["parameters"].keys())
 
     async def get_station_list(self) -> list:
         """Get a list of all available stations."""
