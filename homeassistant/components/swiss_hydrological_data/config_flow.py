@@ -8,9 +8,9 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
-    SelectSelectorMode,
 )
 
 from .const import (
@@ -20,7 +20,6 @@ from .const import (
     CONF_STATION_KEY_WATER_BODY_NAME,
     CONF_STATION_MONITORED_CONDITIONS,
     DOMAIN,
-    PLACEHOLDERS,
 )
 
 
@@ -39,14 +38,10 @@ class SwissHydroDataConfigFlow(ConfigFlow, domain=DOMAIN):
 
         errors: dict[str, str] = {}
 
-        stations = await self.get_station_list()
-
         if user_input is not None:
-            station_id = user_input[CONF_STATION].split(":")[0]
-            user_input[CONF_STATION] = station_id
+            station_id = user_input[CONF_STATION]
             conditions = await self.get_conditions(station_id)
             user_input[CONF_STATION_MONITORED_CONDITIONS] = conditions
-
             unique_id = f"swiss_hydro_data_{station_id}"
             await self.async_set_unique_id(unique_id)
             self._abort_if_unique_id_configured()
@@ -55,24 +50,26 @@ class SwissHydroDataConfigFlow(ConfigFlow, domain=DOMAIN):
                 data=user_input,
             )
 
+        stations = await self.get_station_list()
+
+        options = [
+            SelectOptionDict(
+                value=station["id"],
+                label=f"{station[CONF_STATION_KEY_ID]}: {station[CONF_STATION_KEY_NAME]} ({station[CONF_STATION_KEY_WATER_BODY_NAME]})",
+            )
+            for station in stations
+        ]
+
         return self.async_show_form(
             step_id="user",
-            data_schema=self.add_suggested_values_to_schema(
-                data_schema=vol.Schema(
-                    {
-                        vol.Required(CONF_STATION): SelectSelector(
-                            SelectSelectorConfig(
-                                options=stations,
-                                mode=SelectSelectorMode.DROPDOWN,
-                                translation_key="station",
-                            ),
-                        ),
-                    }
-                ),
-                suggested_values=user_input,
-            ),
             errors=errors,
-            description_placeholders=PLACEHOLDERS,
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_STATION): SelectSelector(
+                        SelectSelectorConfig(options=options, sort=True),
+                    ),
+                }
+            ),
         )
 
     async def get_conditions(self, station_id: str) -> list:
@@ -86,9 +83,4 @@ class SwissHydroDataConfigFlow(ConfigFlow, domain=DOMAIN):
         """Get a list of all available stations."""
         session = async_get_clientsession(self.hass)
         shd = SwissHydroData(session)
-        stations = await shd.async_get_stations() or []
-        stations = sorted(stations, key=lambda k: int(k[CONF_STATION_KEY_ID]))
-        return [
-            f"{station[CONF_STATION_KEY_ID]}: {station[CONF_STATION_KEY_NAME]} ({station[CONF_STATION_KEY_WATER_BODY_NAME]})"
-            for station in stations
-        ]
+        return await shd.async_get_stations() or []
